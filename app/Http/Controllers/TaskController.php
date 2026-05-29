@@ -16,9 +16,10 @@ class TaskController extends Controller
             'description'=> 'nullable|string',
             'priority'   => 'in:low,medium,high',
             'tags'       => 'nullable|string',
-            'duedate'    => 'nullable|date|after_or_equal:today',
-            'plan_start' => 'nullable|date|after_or_equal:today',
-            'plan_end'   => 'nullable|date|after_or_equal:plan_start',
+            'duedate'     => 'nullable|date|after_or_equal:today',
+            'plan_start'  => 'nullable|date|after_or_equal:today',
+            'plan_end'    => 'nullable|date|after_or_equal:plan_start',
+            'assigned_to' => 'nullable|string|max:100',
         ]);
 
         // Contar cuántas tareas hay para poner la nueva al final
@@ -42,9 +43,10 @@ class TaskController extends Controller
             'priority'   => 'sometimes|in:low,medium,high',
             'tags'       => 'nullable|string',
             'position'   => 'sometimes|integer',
-            'duedate'    => 'nullable|date|after_or_equal:today',
-            'plan_start' => 'nullable|date|after_or_equal:today',
-            'plan_end'   => 'nullable|date|after_or_equal:plan_start',
+            'duedate'     => 'nullable|date|after_or_equal:today',
+            'plan_start'  => 'nullable|date|after_or_equal:today',
+            'plan_end'    => 'nullable|date|after_or_equal:plan_start',
+            'assigned_to' => 'nullable|string|max:100',
         ]);
 
         $task->update($validated);

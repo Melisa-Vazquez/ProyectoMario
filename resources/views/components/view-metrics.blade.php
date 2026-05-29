@@ -66,24 +66,10 @@
         </div>
 
         <p class="text-[11px] text-slate-600 mt-4 text-center">
-            Los datos se obtienen del historial de actividad registrado en esta sesión (localStorage).
+            Datos compartidos del equipo — cada miembro contribuye al flujo al completar tareas.
         </p>
     </div>
 
-    {{-- Distribución columnas + prioridad --}}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-        <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl">
-            <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-5">Tareas por columna</h3>
-            <div id="m-col-dist" class="space-y-4"></div>
-        </div>
-
-        <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl">
-            <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-5">Distribución por prioridad</h3>
-            <div id="metrics-priority-distribution" class="space-y-4"></div>
-        </div>
-
-    </div>
 
 </div>
 </div>

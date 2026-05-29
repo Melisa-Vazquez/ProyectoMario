@@ -9,6 +9,7 @@ let originalBoardData      = null;
 let isDragging             = false;
 let velocityChartInstance  = null;
 let currentVelocityPeriod  = 'week';
+let usersCache             = [];
 
 // ────────────────────────────────────────────────────────────
 // 1. Navegación entre pestañas
@@ -58,12 +59,13 @@ async function loadBoard() {
         originalBoardData.columns.forEach(column => {
             const columnEl = document.createElement('div');
             columnEl.className = "bg-slate-800 p-4 rounded-xl w-80 shrink-0 shadow-md border border-slate-700 flex flex-col max-h-[72vh]";
+            columnEl.setAttribute('data-column-card', column.id);
             columnEl.innerHTML = `
-                <div class="flex justify-between items-center mb-4 shrink-0">
+                <div class="column-drag-handle flex justify-between items-center mb-4 shrink-0 cursor-grab active:cursor-grabbing select-none">
                     <h3 class="font-bold text-sm text-slate-200 tracking-wide uppercase">${column.name}</h3>
                     <div class="flex items-center gap-1.5">
                         <span class="bg-slate-700/80 text-[10px] px-2 py-0.5 rounded-full text-slate-300 font-bold">${column.tasks.length}</span>
-                        <button onclick="deleteColumn(${column.id}, '${column.name}')" class="text-slate-500 hover:text-red-400 text-xs transition p-1" title="Eliminar columna">🗑️</button>
+                        ${isAdmin() ? `<button onclick="deleteColumn(${column.id}, '${column.name}')" class="text-slate-500 hover:text-red-400 text-xs transition p-1 cursor-pointer" title="Eliminar columna">🗑️</button>` : ''}
                     </div>
                 </div>
                 <div id="column-${column.id}" data-column-id="${column.id}"
@@ -79,18 +81,22 @@ async function loadBoard() {
             initSortable(column.id);
         });
 
-        // Botón "añadir columna"
-        const addColumnCard = document.createElement('div');
-        addColumnCard.className = "w-80 shrink-0";
-        addColumnCard.innerHTML = `
-            <button onclick="openCreateColumnPrompt()"
-                    class="w-full py-4 bg-slate-800/30 hover:bg-slate-800/70 border-2 border-dashed border-slate-700
-                           hover:border-indigo-500/50 text-slate-400 hover:text-indigo-400 font-semibold rounded-xl
-                           text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-md min-h-[100px]">
-                ➕ Añadir Nueva Columna
-            </button>
-        `;
-        container.appendChild(addColumnCard);
+        initColumnSortable();
+
+        // Botón "añadir columna" — solo admin
+        if (isAdmin()) {
+            const addColumnCard = document.createElement('div');
+            addColumnCard.className = "w-80 shrink-0 add-col-btn";
+            addColumnCard.innerHTML = `
+                <button onclick="openCreateColumnPrompt()"
+                        class="w-full py-4 bg-slate-800/30 hover:bg-slate-800/70 border-2 border-dashed border-slate-700
+                               hover:border-indigo-500/50 text-slate-400 hover:text-indigo-400 font-semibold rounded-xl
+                               text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-md min-h-[100px]">
+                    ➕ Añadir Nueva Columna
+                </button>
+            `;
+            container.appendChild(addColumnCard);
+        }
 
     } catch (error) {
         console.error("Error al sincronizar datos:", error);
@@ -119,6 +125,17 @@ function createCardHtml(task) {
         dateBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded font-bold ${badgeColor}">📅 ${task.duedate}</span>`;
     }
 
+    let assignedHtml = '';
+    if (task.assigned_to) {
+        const initials = task.assigned_to.trim().split(' ')
+            .map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        assignedHtml = `
+            <span class="flex items-center gap-1.5 text-[10px] font-bold text-violet-300 bg-violet-500/10 border border-violet-500/20 px-1.5 py-0.5 rounded-full" title="${task.assigned_to}">
+                <span class="w-4 h-4 rounded-full bg-violet-600 flex items-center justify-center text-[8px] font-black text-white shrink-0">${initials}</span>
+                ${task.assigned_to.split(' ')[0]}
+            </span>`;
+    }
+
     return `
         <div data-task-id="${task.id}"
              onclick="openDetailsModal(${task.id})"
@@ -127,7 +144,10 @@ function createCardHtml(task) {
             <p class="text-xs text-slate-400 mt-1 line-clamp-2">${task.description || ''}</p>
             <div class="flex flex-wrap items-center justify-between gap-2 mt-3">
                 <div class="flex flex-wrap gap-1">${tagsHtml}</div>
-                ${dateBadge}
+                <div class="flex items-center gap-2 ml-auto">
+                    ${assignedHtml}
+                    ${dateBadge}
+                </div>
             </div>
         </div>
     `;
@@ -138,48 +158,92 @@ function createCardHtml(task) {
 // ────────────────────────────────────────────────────────────
 function initSortable(columnId) {
     const el = document.getElementById(`column-${columnId}`);
+    if (!el) return;
+
     new Sortable(el, {
-        group: 'agile-shared',
-        animation: 150,
-        ghostClass: 'bg-slate-800/40',
+        group:      'agile-tasks',
+        animation:  150,
+        ghostClass: 'opacity-40',
         onStart: () => { isDragging = true; },
         onEnd: async function (evt) {
-            setTimeout(() => { isDragging = false; }, 50);
+            setTimeout(() => { isDragging = false; }, 100);
 
             const taskId    = evt.item.getAttribute('data-task-id');
             const fromColId = evt.from.getAttribute('data-column-id');
             const toColId   = evt.to.getAttribute('data-column-id');
             const isSameCol = fromColId === toColId;
-            const colName   = evt.to.parentElement.querySelector('h3').innerText;
 
-            // Construir actualizaciones de posición para la columna destino
-            const updates = [...evt.to.querySelectorAll('[data-task-id]')].map((card, idx) =>
-                fetch(`${TASK_API_URL}/${card.getAttribute('data-task-id')}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ column_id: parseInt(toColId), position: idx + 1 })
-                })
-            );
-
-            // Si fue movida entre columnas, también reordenar la columna origen
-            if (!isSameCol) {
-                [...evt.from.querySelectorAll('[data-task-id]')].forEach((card, idx) => {
-                    updates.push(
-                        fetch(`${TASK_API_URL}/${card.getAttribute('data-task-id')}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                            body: JSON.stringify({ column_id: parseInt(fromColId), position: idx + 1 })
-                        })
-                    );
-                });
-                logHistoryEvent(taskId, `Movida a la columna "${colName}"`);
-            }
+            // Nombre de la columna destino (para historial)
+            const colNameEl = evt.to.parentElement?.querySelector('h3');
+            const colName   = colNameEl ? colNameEl.innerText : '';
 
             try {
+                // Actualizar posiciones en columna destino
+                const updates = [...evt.to.querySelectorAll('[data-task-id]')].map((card, idx) =>
+                    fetch(`${TASK_API_URL}/${card.getAttribute('data-task-id')}`, {
+                        method:  'PUT',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                        body:    JSON.stringify({ column_id: parseInt(toColId), position: idx + 1 }),
+                    })
+                );
+
+                // Si cambió de columna, actualizar también la columna origen
+                if (!isSameCol) {
+                    [...evt.from.querySelectorAll('[data-task-id]')].forEach((card, idx) => {
+                        updates.push(
+                            fetch(`${TASK_API_URL}/${card.getAttribute('data-task-id')}`, {
+                                method:  'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                                body:    JSON.stringify({ column_id: parseInt(fromColId), position: idx + 1 }),
+                            })
+                        );
+                    });
+
+                    if (colName) logHistoryEvent(taskId, `Movida a la columna "${colName}"`);
+                    if (colName.toLowerCase() === 'terminado') {
+                        logHistoryEvent(taskId, 'Tarea marcada como Completada ✅');
+                        logCompletionToServer(taskId);
+                    }
+                }
+
                 await Promise.all(updates);
+            } catch (err) {
+                console.error('Error al reordenar tarea:', err);
+            } finally {
                 loadBoard();
-            } catch (error) { console.error("Error al reordenar:", error); }
-        }
+            }
+        },
+    });
+}
+
+function initColumnSortable() {
+    const container = document.getElementById('kanban-container');
+    if (!container) return;
+
+    new Sortable(container, {
+        animation:   200,
+        handle:      '.column-drag-handle',
+        filter:      '.add-col-btn',
+        draggable:   '[data-column-card]',
+        ghostClass:  'opacity-30',
+        onEnd: async function (evt) {
+            const columnCards = [...container.querySelectorAll('[data-column-card]')];
+            try {
+                await Promise.all(
+                    columnCards.map((card, idx) =>
+                        fetch(`/api/columns/${card.getAttribute('data-column-card')}`, {
+                            method:  'PUT',
+                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                            body:    JSON.stringify({ position: idx + 1 }),
+                        })
+                    )
+                );
+            } catch (err) {
+                console.error('Error al reordenar columna:', err);
+            } finally {
+                loadBoard();
+            }
+        },
     });
 }
 
@@ -187,12 +251,18 @@ function initSortable(columnId) {
 // 5. Columnas: crear y eliminar
 // ────────────────────────────────────────────────────────────
 function openCreateColumnPrompt() {
+    if (originalBoardData?.columns?.length >= 10) {
+        alert('Límite alcanzado: el tablero no puede tener más de 10 columnas.');
+        return;
+    }
     const modal = document.getElementById('column-prompt-modal');
     const input = document.getElementById('column-name-input');
     const acceptBtn = document.getElementById('column-prompt-accept');
     const cancelBtn = document.getElementById('column-prompt-cancel');
 
     input.value = '';
+    input.placeholder = 'Nombre de la columna...';
+    input.classList.remove('border-red-500');
     modal.classList.remove('hidden');
     input.focus();
 
@@ -205,8 +275,19 @@ function openCreateColumnPrompt() {
 
     const onAccept = async () => {
         const columnName = input.value.trim();
-        close();
         if (!columnName) return;
+
+        const duplicado = originalBoardData?.columns?.some(
+            c => c.name.toLowerCase() === columnName.toLowerCase()
+        );
+        if (duplicado) {
+            input.classList.add('border-red-500');
+            input.placeholder = 'Ese nombre ya existe, elige otro...';
+            input.value = '';
+            return;
+        }
+
+        close();
 
         const currentPosition = originalBoardData?.columns?.length + 1 || 1;
         try {
@@ -218,7 +299,8 @@ function openCreateColumnPrompt() {
             if (response.ok) {
                 await loadBoard();
             } else {
-                alert("No se pudo guardar la columna.");
+                const data = await response.json().catch(() => ({}));
+                alert(data.error || 'No se pudo guardar la columna.');
             }
         } catch (error) {
             alert("Error de conexión con el servidor.");
@@ -280,6 +362,7 @@ function openCreateModal(columnId) {
     document.getElementById('modal-column-id').value = columnId;
     document.getElementById('task-form').reset();
     document.getElementById('modal-form-title').innerText = 'Nueva Tarea';
+    populateAssignedSelect();
     setDateMins();
     document.getElementById('task-modal').classList.remove('hidden');
 }
@@ -295,6 +378,7 @@ function openEditFromDetails() {
     document.getElementById('task-duedate').value       = currentActiveTask.duedate || '';
     document.getElementById('task-plan-start').value    = currentActiveTask.plan_start || '';
     document.getElementById('task-plan-end').value      = currentActiveTask.plan_end || '';
+    populateAssignedSelect(currentActiveTask.assigned_to || '');
     document.getElementById('modal-form-title').innerText = 'Editar Tarea';
     setDateMins();
     document.getElementById('details-modal').classList.add('hidden');
@@ -317,6 +401,7 @@ async function saveTask(event) {
         duedate:     document.getElementById('task-duedate').value    || null,
         plan_start:  document.getElementById('task-plan-start').value || null,
         plan_end:    document.getElementById('task-plan-end').value   || null,
+        assigned_to: document.getElementById('task-assigned').value   || null,
     };
 
     const url    = taskId ? `${TASK_API_URL}/${taskId}` : TASK_API_URL;
@@ -401,6 +486,20 @@ function openDetailsModal(taskId) {
                 <span class="text-indigo-300 font-bold">${fmt(foundTask.plan_end)}</span>
             </div>
         `;
+    }
+
+    // Responsable
+    const assignedEl     = document.getElementById('detail-assigned');
+    const assignedNameEl = document.getElementById('detail-assigned-name');
+    if (assignedEl && assignedNameEl) {
+        if (foundTask.assigned_to) {
+            assignedNameEl.innerText = foundTask.assigned_to;
+            assignedEl.classList.remove('hidden');
+            assignedEl.classList.add('flex');
+        } else {
+            assignedEl.classList.add('hidden');
+            assignedEl.classList.remove('flex');
+        }
     }
 
     // Selector de columnas
@@ -517,6 +616,10 @@ async function moveTaskToColumn(newColumnId) {
 
         if (response.ok) {
             logHistoryEvent(currentActiveTask.id, `Movida a la columna "${colName}"`);
+            if (targetCol && targetCol.name.toLowerCase() === 'terminado') {
+                logHistoryEvent(currentActiveTask.id, 'Tarea marcada como Completada ✅');
+                logCompletionToServer(currentActiveTask.id);
+            }
             currentActiveTask.column_id = newColumnId;
 
             // Actualizar botón Completar según nueva columna
@@ -563,6 +666,7 @@ async function completeTask() {
 
         if (response.ok) {
             logHistoryEvent(currentActiveTask.id, 'Tarea marcada como Completada ✅');
+            await logCompletionToServer(currentActiveTask.id);
             closeDetailsModal();
             await loadBoard();
         } else {
@@ -616,7 +720,8 @@ function addComment() {
     const comments = JSON.parse(localStorage.getItem(`comments_${currentActiveTask.id}`)) || [];
     comments.push({
         text,
-        date: new Date().toLocaleString()
+        author: window.currentUser?.name ?? 'Usuario',
+        date:   new Date().toLocaleString('es-MX'),
     });
     localStorage.setItem(`comments_${currentActiveTask.id}`, JSON.stringify(comments));
 
@@ -664,13 +769,22 @@ function renderComments(taskId) {
         return;
     }
 
-    container.innerHTML = comments.map(c => `
+    container.innerHTML = comments.map(c => {
+        const author   = c.author ?? 'Usuario';
+        const initials = author.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const isMe     = window.currentUser && c.author === window.currentUser.name;
+        return `
         <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/50 text-xs text-slate-200">
-            <p class="font-semibold text-indigo-400 text-[10px] uppercase tracking-wider mb-1">👤 Usuario Local</p>
-            <p class="leading-relaxed">${c.text}</p>
-            <span class="text-[9px] text-slate-500 block text-right mt-1">${c.date}</span>
-        </div>
-    `).join('');
+            <div class="flex items-center gap-2 mb-1.5">
+                <div class="w-5 h-5 rounded-full ${isMe ? 'bg-indigo-600' : 'bg-slate-600'} flex items-center justify-center text-[9px] font-black text-white shrink-0">
+                    ${initials}
+                </div>
+                <span class="font-bold ${isMe ? 'text-indigo-400' : 'text-slate-300'} text-[11px]">${author}</span>
+                <span class="text-[9px] text-slate-600 ml-auto">${c.date}</span>
+            </div>
+            <p class="leading-relaxed text-slate-300 pl-7">${c.text}</p>
+        </div>`;
+    }).join('');
 }
 
 function renderHistory(taskId, createdAt) {
@@ -702,8 +816,24 @@ function renderHistory(taskId, createdAt) {
 function logHistoryEvent(taskId, message) {
     const key     = `history_${taskId}`;
     const history = JSON.parse(localStorage.getItem(key)) || [];
-    history.push({ log: message, date: new Date().toLocaleString() });
+    const now     = new Date();
+    history.push({
+        log:  message,
+        date: now.toLocaleString('es-MX'),
+        iso:  now.toISOString(),
+    });
     localStorage.setItem(key, JSON.stringify(history));
+}
+
+function parseHistoryDate(entry) {
+    // Formato nuevo: campo iso
+    if (entry.iso) return new Date(entry.iso);
+
+    // Formato antiguo: "DD/MM/YYYY, ..." — extraer con regex
+    const m = (entry.date || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+
+    return null;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -823,6 +953,19 @@ function renderAdvancedMetrics() {
     buildVelocityChart(currentVelocityPeriod);
 }
 
+async function logCompletionToServer(taskId) {
+    try {
+        await fetch('/api/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                task_id: taskId,
+                user_id: window.currentUser?.id ?? null,
+            }),
+        });
+    } catch (e) { console.error('Error registrando completado:', e); }
+}
+
 function setVelocityPeriod(period) {
     currentVelocityPeriod = period;
     const active   = 'text-xs font-bold px-3 py-1.5 rounded-lg transition bg-indigo-600 text-white';
@@ -834,30 +977,23 @@ function setVelocityPeriod(period) {
     buildVelocityChart(period);
 }
 
-function buildVelocityChart(period) {
+async function buildVelocityChart(period) {
     const canvas = document.getElementById('velocity-chart');
     if (!canvas) return;
 
-    // Recopilar eventos de completado del historial (localStorage)
-    const completions = [];
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('history_')) {
-            const logs = JSON.parse(localStorage.getItem(key)) || [];
-            logs.forEach(l => {
-                if (l.log && l.log.includes('Completada')) {
-                    const d = new Date(l.date);
-                    if (!isNaN(d)) completions.push(d);
-                }
-            });
-        }
-    }
+    // Leer completados del equipo desde la base de datos
+    let rawCompletions = [];
+    try {
+        const res = await fetch(`/api/completions?period=${period}`);
+        rawCompletions = await res.json();
+    } catch (e) { console.error('Error cargando completados:', e); }
+
+    const completions = rawCompletions.map(c => new Date(c.completed_at));
 
     const labels = [];
     const data   = [];
 
     if (period === 'week') {
-        // 7 días individuales
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
@@ -867,9 +1003,8 @@ function buildVelocityChart(period) {
             data.push(completions.filter(c => c >= d && c < next).length);
         }
     } else {
-        // 4 semanas (último mes)
         for (let w = 3; w >= 0; w--) {
-            const wEnd   = new Date();
+            const wEnd = new Date();
             wEnd.setDate(wEnd.getDate() - w * 7);
             wEnd.setHours(23, 59, 59, 999);
             const wStart = new Date(wEnd);
@@ -976,10 +1111,220 @@ function clearGlobalHistory() {
 }
 
 // ────────────────────────────────────────────────────────────
-// 13. Init — exponer funciones al scope global (onclick en HTML)
+// 13. Roles
 // ────────────────────────────────────────────────────────────
-window.onload = function () {
-    loadBoard();
+function isAdmin() {
+    return window.currentUser?.role === 'admin';
+}
+
+async function openAdminPanel() {
+    document.getElementById('admin-panel-modal').classList.remove('hidden');
+    const list = document.getElementById('admin-users-list');
+    list.innerHTML = '<p class="text-slate-500 text-sm text-center py-4">Cargando...</p>';
+
+    try {
+        const res   = await fetch('/admin/users');
+        const users = await res.json();
+
+        list.innerHTML = users.map(u => {
+            const isCurrentUser = u.id === window.currentUser?.id;
+            const isUserAdmin   = u.role === 'admin';
+            const initials      = u.name.trim().split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+            const avatarColor   = isUserAdmin ? 'bg-amber-500' : 'bg-indigo-600';
+            const roleBadge     = isUserAdmin
+                ? '<span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">★ Admin</span>'
+                : '<span class="text-[10px] font-bold text-slate-400 bg-slate-700 border border-slate-600 px-2 py-0.5 rounded-full">Miembro</span>';
+
+            const toggleBtn = !isCurrentUser ? `
+                <button onclick="toggleUserRole(${u.id}, '${u.role}')"
+                    class="text-xs font-bold px-3 py-1.5 rounded-lg transition shrink-0
+                           ${isUserAdmin
+                               ? 'bg-slate-700 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border border-slate-600 hover:border-red-500/30'
+                               : 'bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border border-amber-500/20'}">
+                    ${isUserAdmin ? 'Quitar admin' : 'Hacer admin'}
+                </button>` : '<span class="text-[10px] text-slate-600 italic">Tú</span>';
+
+            return `
+                <div class="flex items-center gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-700/50">
+                    <div class="w-9 h-9 rounded-full ${avatarColor} flex items-center justify-center text-sm font-black text-white shrink-0">
+                        ${initials}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-white truncate">${u.name}</p>
+                        <p class="text-xs text-slate-500 truncate">${u.email}</p>
+                    </div>
+                    ${roleBadge}
+                    ${toggleBtn}
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        list.innerHTML = '<p class="text-red-400 text-sm text-center py-4">Error cargando usuarios.</p>';
+    }
+}
+
+function closeAdminPanel() {
+    document.getElementById('admin-panel-modal').classList.add('hidden');
+}
+
+async function addMember() {
+    const name     = document.getElementById('new-member-name')?.value.trim();
+    const email    = document.getElementById('new-member-email')?.value.trim();
+    const password = document.getElementById('new-member-password')?.value;
+    const errorEl  = document.getElementById('admin-add-error');
+
+    errorEl.classList.add('hidden');
+    errorEl.innerText = '';
+
+    if (!name || !email || !password) {
+        errorEl.innerText = 'Completa todos los campos.';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        const res  = await fetch('/admin/users', {
+            method:  'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept':       'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || '',
+            },
+            body: JSON.stringify({ name, email, password }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            // Limpiar campos
+            document.getElementById('new-member-name').value     = '';
+            document.getElementById('new-member-email').value    = '';
+            document.getElementById('new-member-password').value = '';
+            // Recargar lista y barra
+            openAdminPanel();
+            loadUsers();
+        } else {
+            const msg = data.errors
+                ? Object.values(data.errors).flat().join(' ')
+                : (data.message || 'Error al agregar miembro.');
+            errorEl.innerText = msg;
+            errorEl.classList.remove('hidden');
+        }
+    } catch (e) {
+        errorEl.innerText = 'Error de conexión.';
+        errorEl.classList.remove('hidden');
+    }
+}
+
+async function toggleUserRole(userId, currentRole) {
+    const newRole = currentRole === 'admin' ? 'member' : 'admin';
+    try {
+        const res = await fetch(`/admin/users/${userId}/role`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || '' },
+            body:    JSON.stringify({ role: newRole }),
+        });
+        if (res.ok) {
+            openAdminPanel(); // recargar lista
+            loadUsers();      // actualizar barra de colaboradores
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Error al cambiar el rol.');
+        }
+    } catch (e) { console.error('Error:', e); }
+}
+
+// ────────────────────────────────────────────────────────────
+// 14. Colaboradores y usuarios
+// ────────────────────────────────────────────────────────────
+async function loadUsers() {
+    try {
+        const res = await fetch('/api/users');
+        usersCache = await res.json();
+        populateAssignedSelect();
+        renderCollaboratorsBar();
+    } catch (e) { console.error('Error cargando usuarios:', e); }
+}
+
+function populateAssignedSelect(currentValue = '') {
+    const sel = document.getElementById('task-assigned');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Sin asignar</option>' +
+        usersCache.map(u =>
+            `<option value="${u.name}" ${u.name === currentValue ? 'selected' : ''}>${u.name}</option>`
+        ).join('');
+}
+
+function renderCollaboratorsBar() {
+    const bar = document.getElementById('collaborators-bar');
+    if (!bar || usersCache.length === 0) return;
+
+    // Calcular tareas por usuario a partir del board
+    const tasksByUser = {};
+    usersCache.forEach(u => { tasksByUser[u.name] = { total: 0, inProgress: [] }; });
+
+    if (originalBoardData) {
+        const terminadoId = originalBoardData.columns.find(
+            c => c.name.toLowerCase() === 'terminado'
+        )?.id;
+
+        originalBoardData.columns.forEach(col => {
+            col.tasks.forEach(t => {
+                if (t.assigned_to && tasksByUser[t.assigned_to]) {
+                    tasksByUser[t.assigned_to].total++;
+                    if (col.id !== terminadoId) {
+                        tasksByUser[t.assigned_to].inProgress.push(t.title);
+                    }
+                }
+            });
+        });
+    }
+
+    // Paleta de colores por usuario
+    const palette = [
+        'bg-indigo-600', 'bg-violet-600', 'bg-sky-600',
+        'bg-emerald-600', 'bg-amber-600', 'bg-rose-600',
+    ];
+
+    const label = bar.querySelector('span') || document.createElement('span');
+
+    const avatarsHtml = usersCache.map((u, idx) => {
+        const initials = u.name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const color    = palette[idx % palette.length];
+        const stats    = tasksByUser[u.name];
+        const isCurrent = window.currentUser && u.name === window.currentUser.name;
+        const inProg   = stats.inProgress.length;
+        const tooltip  = `${u.name} — ${inProg} tarea${inProg !== 1 ? 's' : ''} en progreso`;
+
+        return `
+            <div class="relative group flex items-center gap-1.5 cursor-default">
+                <div class="w-7 h-7 rounded-full ${color} flex items-center justify-center text-[10px] font-black text-white
+                            ${isCurrent ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-800' : ''}">
+                    ${initials}
+                </div>
+                <span class="text-xs text-slate-400 font-medium">${u.name.split(' ')[0]}</span>
+                ${inProg > 0 ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>` : ''}
+
+                <div class="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 pointer-events-none">
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 whitespace-nowrap shadow-xl">
+                        <p class="font-bold text-white mb-1">${u.name}</p>
+                        <p class="text-slate-400">${stats.total} tarea${stats.total !== 1 ? 's' : ''} asignada${stats.total !== 1 ? 's' : ''}</p>
+                        <p class="text-emerald-400">${inProg} en progreso</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    bar.innerHTML = `<span class="text-[10px] font-bold text-slate-600 uppercase tracking-widest shrink-0">Equipo:</span>${avatarsHtml}`;
+}
+
+// ────────────────────────────────────────────────────────────
+// 14. Init — exponer funciones al scope global (onclick en HTML)
+// ────────────────────────────────────────────────────────────
+window.onload = async function () {
+    await loadBoard();
+    await loadUsers();
 
     // Tablero
     window.openCreateColumnPrompt = openCreateColumnPrompt;
@@ -1003,6 +1348,11 @@ window.onload = function () {
     window.clearFilters           = clearFilters;
     window.clearGlobalHistory     = clearGlobalHistory;
     window.setVelocityPeriod      = setVelocityPeriod;
+    window.populateAssignedSelect = populateAssignedSelect;
+    window.openAdminPanel         = openAdminPanel;
+    window.closeAdminPanel        = closeAdminPanel;
+    window.toggleUserRole         = toggleUserRole;
+    window.addMember              = addMember;
 
     console.log("✅ KanbanFlow JS cargado correctamente.");
 };

@@ -9,7 +9,7 @@ class Task extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['column_id', 'title', 'description', 'priority', 'tags', 'position', 'duedate', 'plan_start', 'plan_end'];
+    protected $fillable = ['column_id', 'title', 'description', 'priority', 'tags', 'position', 'duedate', 'plan_start', 'plan_end', 'assigned_to'];
 
     // Una Tarea pertenece a una Columna
     public function column()

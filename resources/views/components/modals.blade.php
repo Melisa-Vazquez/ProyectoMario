@@ -1,3 +1,55 @@
+{{-- Modal: Panel de Administración --}}
+<div id="admin-panel-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+
+        {{-- Header --}}
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-amber-400">⚙️ Panel de Administración</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Gestión de roles del equipo</p>
+            </div>
+            <button onclick="closeAdminPanel()"
+                class="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700 transition text-xl">
+                &times;
+            </button>
+        </div>
+
+        {{-- Formulario nuevo miembro --}}
+        <div class="px-6 pt-4 pb-2 border-b border-slate-700 shrink-0">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Agregar miembro</p>
+            <div id="admin-add-error" class="hidden bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-lg px-3 py-2 mb-3"></div>
+            <div class="grid grid-cols-3 gap-2 mb-2">
+                <input type="text" id="new-member-name" placeholder="Nombre"
+                    class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition placeholder:text-slate-600">
+                <input type="email" id="new-member-email" placeholder="Correo"
+                    class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition placeholder:text-slate-600">
+                <input type="password" id="new-member-password" placeholder="Contraseña"
+                    class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition placeholder:text-slate-600">
+            </div>
+            <button onclick="addMember()"
+                class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition">
+                ➕ Agregar al equipo
+            </button>
+        </div>
+
+        {{-- Lista de usuarios --}}
+        <div class="flex-1 overflow-y-auto px-6 py-4">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Miembros del equipo</p>
+            <div id="admin-users-list" class="space-y-3">
+                <p class="text-slate-500 text-sm text-center py-4">Cargando usuarios...</p>
+            </div>
+        </div>
+
+        {{-- Leyenda --}}
+        <div class="px-6 py-3 border-t border-slate-700 shrink-0">
+            <p class="text-[11px] text-slate-600">
+                ★ Admin — gestiona columnas y cambia roles &nbsp;|&nbsp;
+                Miembro — crea y trabaja en tareas
+            </p>
+        </div>
+    </div>
+</div>
+
 {{-- Modal: Nueva Columna --}}
 <div id="column-prompt-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
     <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
@@ -55,6 +107,13 @@
                         <input type="date" id="task-plan-end" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm">
                     </div>
                 </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="task-assigned" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Responsable</label>
+                <select id="task-assigned" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500 text-sm">
+                    <option value="">Sin asignar</option>
+                </select>
             </div>
 
             <div class="grid grid-cols-2 gap-4 mb-6">
@@ -126,6 +185,9 @@
                 <div class="flex items-center gap-2 flex-wrap pl-6">
                     <span id="detail-priority" class="text-[11px] font-bold uppercase px-2.5 py-1 rounded-full"></span>
                     <span id="detail-duedate" class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700/60"></span>
+                    <span id="detail-assigned" class="hidden items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/20">
+                        👤 <span id="detail-assigned-name"></span>
+                    </span>
                 </div>
             </div>
 
