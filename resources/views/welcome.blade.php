@@ -37,21 +37,10 @@
 
                 {{-- Usuario actual --}}
                 <div class="flex items-center gap-2 bg-slate-900/60 border border-slate-700 px-3 py-2 rounded-xl">
-                    <div class="w-7 h-7 rounded-full {{ auth()->user()->role === 'admin' ? 'bg-amber-500' : 'bg-indigo-600' }} flex items-center justify-center text-xs font-black text-white shrink-0">
+                    <div class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-black text-white shrink-0">
                         {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
                     </div>
-                    <div class="flex flex-col leading-none">
-                        <span class="text-sm font-semibold text-slate-200">{{ auth()->user()->name }}</span>
-                        <span class="text-[10px] font-bold {{ auth()->user()->role === 'admin' ? 'text-amber-400' : 'text-slate-500' }} uppercase tracking-wide">
-                            {{ auth()->user()->role === 'admin' ? '★ Admin' : 'Miembro' }}
-                        </span>
-                    </div>
-                    @if(auth()->user()->role === 'admin')
-                    <button onclick="openAdminPanel()" title="Gestionar usuarios"
-                        class="text-amber-400 hover:text-amber-300 transition text-sm px-1" >
-                        ⚙️
-                    </button>
-                    @endif
+                    <span class="text-sm font-semibold text-slate-200">{{ auth()->user()->name }}</span>
                     <form method="POST" action="/logout" class="ml-1">
                         @csrf
                         <button type="submit" title="Cerrar sesión"
@@ -70,6 +59,17 @@
         </div>
     </header>
 
+    @if(session('login_success'))
+    <div id="login-toast"
+         class="fixed top-5 right-5 z-50 flex items-center gap-3 bg-emerald-900/90 border border-emerald-500/40 text-emerald-300 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-semibold backdrop-blur-sm">
+        <span class="text-lg">✅</span>
+        <span>{{ session('login_success') }}</span>
+        <button onclick="document.getElementById('login-toast').remove()"
+            class="ml-2 text-emerald-500 hover:text-emerald-300 transition font-black text-base">✕</button>
+    </div>
+    <script>setTimeout(() => document.getElementById('login-toast')?.remove(), 4000);</script>
+    @endif
+
     <x-navigation />
 
     <div class="flex-1 overflow-auto bg-slate-900">
@@ -81,7 +81,7 @@
     <x-modals />
 
     <script>
-        window.currentUser = @json(['id' => auth()->id(), 'name' => auth()->user()->name, 'role' => auth()->user()->role]);
+        window.currentUser = @json(['id' => auth()->id(), 'name' => auth()->user()->name]);
     </script>
     <script src="{{ asset('js/agile-board.js') }}"></script>
 </body>

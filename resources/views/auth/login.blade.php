@@ -10,7 +10,6 @@
 
     <div class="w-full max-w-sm">
 
-        {{-- Logo / título --}}
         <div class="text-center mb-8">
             <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl mb-4">
                 <span class="text-2xl">🚀</span>
@@ -19,12 +18,11 @@
             <p class="text-slate-500 text-sm mt-1">Inicia sesión para acceder al tablero</p>
         </div>
 
-        {{-- Card --}}
         <div class="bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-2xl">
 
             @if ($errors->any())
                 <div class="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3 mb-5">
-                    {{ $errors->first() }}
+                    ⚠ {{ $errors->first() }}
                 </div>
             @endif
 
@@ -44,9 +42,16 @@
                     <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                         Contraseña
                     </label>
-                    <input type="password" name="password" required
-                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 transition placeholder:text-slate-600"
-                        placeholder="••••••••">
+                    <div class="relative">
+                        <input type="password" name="password" id="login-password" required
+                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 pr-12 text-white text-sm focus:outline-none focus:border-indigo-500 transition placeholder:text-slate-600"
+                            placeholder="••••••••">
+                        <button type="button" onclick="togglePassword('login-password', 'login-eye')"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition text-xs font-bold select-none"
+                            id="login-eye">
+                            VER
+                        </button>
+                    </div>
                 </div>
 
                 <div class="flex items-center gap-2 mb-6">
@@ -69,6 +74,20 @@
         </p>
 
     </div>
+
+    <script>
+        function togglePassword(inputId, btnId) {
+            const input = document.getElementById(inputId);
+            const btn   = document.getElementById(btnId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.innerText = 'OCULTAR';
+            } else {
+                input.type = 'password';
+                btn.innerText = 'VER';
+            }
+        }
+    </script>
 
 </body>
 </html>

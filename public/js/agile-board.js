@@ -65,12 +65,12 @@ async function loadBoard() {
                     <h3 class="font-bold text-sm text-slate-200 tracking-wide uppercase">${column.name}</h3>
                     <div class="flex items-center gap-1.5">
                         <span class="bg-slate-700/80 text-[10px] px-2 py-0.5 rounded-full text-slate-300 font-bold">${column.tasks.length}</span>
-                        ${isAdmin() ? `<button onclick="deleteColumn(${column.id}, '${column.name}')" class="text-slate-500 hover:text-red-400 text-xs transition p-1 cursor-pointer" title="Eliminar columna">🗑️</button>` : ''}
+                        <button onclick="deleteColumn(${column.id}, '${column.name}')" class="text-slate-500 hover:text-red-400 text-xs transition p-1 cursor-pointer" title="Eliminar columna">🗑️</button>
                     </div>
                 </div>
                 <div id="column-${column.id}" data-column-id="${column.id}"
                      class="task-list space-y-3 overflow-y-auto flex-1 p-1 rounded-lg min-h-[200px]">
-                    ${column.tasks.map(task => createCardHtml(task)).join('')}
+                    ${column.tasks.map(task => createCardHtml(task, column.name)).join('')}
                 </div>
                 <button onclick="openCreateModal(${column.id})"
                         class="w-full mt-3 py-2 border border-dashed border-slate-600 hover:border-indigo-500 hover:text-indigo-400 rounded-lg text-xs text-slate-400 flex items-center justify-center gap-1 transition shrink-0">
@@ -83,20 +83,18 @@ async function loadBoard() {
 
         initColumnSortable();
 
-        // Botón "añadir columna" — solo admin
-        if (isAdmin()) {
-            const addColumnCard = document.createElement('div');
-            addColumnCard.className = "w-80 shrink-0 add-col-btn";
-            addColumnCard.innerHTML = `
-                <button onclick="openCreateColumnPrompt()"
-                        class="w-full py-4 bg-slate-800/30 hover:bg-slate-800/70 border-2 border-dashed border-slate-700
-                               hover:border-indigo-500/50 text-slate-400 hover:text-indigo-400 font-semibold rounded-xl
-                               text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-md min-h-[100px]">
-                    ➕ Añadir Nueva Columna
-                </button>
-            `;
-            container.appendChild(addColumnCard);
-        }
+        // Botón "añadir columna"
+        const addColumnCard = document.createElement('div');
+        addColumnCard.className = "w-80 shrink-0 add-col-btn";
+        addColumnCard.innerHTML = `
+            <button onclick="openCreateColumnPrompt()"
+                    class="w-full py-4 bg-slate-800/30 hover:bg-slate-800/70 border-2 border-dashed border-slate-700
+                           hover:border-indigo-500/50 text-slate-400 hover:text-indigo-400 font-semibold rounded-xl
+                           text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-md min-h-[100px]">
+                ➕ Añadir Nueva Columna
+            </button>
+        `;
+        container.appendChild(addColumnCard);
 
     } catch (error) {
         console.error("Error al sincronizar datos:", error);
@@ -106,7 +104,8 @@ async function loadBoard() {
 // ────────────────────────────────────────────────────────────
 // 3. HTML de tarjeta
 // ────────────────────────────────────────────────────────────
-function createCardHtml(task) {
+function createCardHtml(task, columnName = '') {
+    const isDone = columnName.toLowerCase() === 'terminado';
     const priorityColors = { low: 'border-green-500', medium: 'border-yellow-500', high: 'border-red-500' };
     const tagsHtml = task.tags
         ? task.tags.split(',').map(t =>
@@ -140,7 +139,7 @@ function createCardHtml(task) {
         <div data-task-id="${task.id}"
              onclick="openDetailsModal(${task.id})"
              class="bg-slate-700 p-4 rounded-xl shadow cursor-pointer hover:bg-slate-600 transition border-l-4 ${priorityColors[task.priority] || 'border-slate-500'}">
-            <h4 class="font-bold text-white text-sm tracking-wide">${task.title}</h4>
+            <h4 class="font-bold text-sm tracking-wide ${isDone ? 'line-through text-slate-400' : 'text-white'}">${task.title}</h4>
             <p class="text-xs text-slate-400 mt-1 line-clamp-2">${task.description || ''}</p>
             <div class="flex flex-wrap items-center justify-between gap-2 mt-3">
                 <div class="flex flex-wrap gap-1">${tagsHtml}</div>

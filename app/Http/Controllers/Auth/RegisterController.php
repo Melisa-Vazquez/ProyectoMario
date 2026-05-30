@@ -20,11 +20,15 @@ class RegisterController extends Controller
         $request->validate([
             'name'                  => 'required|string|max:100',
             'email'                 => 'required|email|unique:users',
-            'password'              => 'required|min:8|confirmed',
+            'password'              => ['required', 'confirmed', 'min:8',
+                                        'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&._\-#]).{8,}$/'],
         ], [
             'name.required'         => 'El nombre es obligatorio.',
-            'email.unique'          => 'Ya existe una cuenta con ese correo.',
+            'email.required'        => 'El correo electrónico es obligatorio.',
+            'email.email'           => 'El correo electrónico no tiene un formato válido. Ejemplo: usuario@correo.com',
+            'email.unique'          => 'Ya existe una cuenta con ese correo electrónico.',
             'password.min'          => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.regex'        => 'La contraseña debe tener al menos una mayúscula, una minúscula, un número y un símbolo especial (@$!%*?&._-#).',
             'password.confirmed'    => 'Las contraseñas no coinciden.',
         ]);
 
