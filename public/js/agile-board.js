@@ -35,7 +35,7 @@ function switchView(viewName) {
 // ────────────────────────────────────────────────────────────
 async function loadBoard() {
     try {
-        const response = await fetch(API_URL);
+        const response = await fetch(`${API_URL}?_=${Date.now()}`);
         originalBoardData = await response.json();
 
         document.getElementById('board-name').innerText = originalBoardData.name;
@@ -983,7 +983,7 @@ async function buildVelocityChart(period) {
     // Leer completados del equipo desde la base de datos
     let rawCompletions = [];
     try {
-        const res = await fetch(`/api/completions?period=${period}`);
+        const res = await fetch(`/api/completions?period=${period}&_=${Date.now()}`);
         rawCompletions = await res.json();
     } catch (e) { console.error('Error cargando completados:', e); }
 
@@ -1238,7 +1238,7 @@ async function toggleUserRole(userId, currentRole) {
 // ────────────────────────────────────────────────────────────
 async function loadUsers() {
     try {
-        const res = await fetch('/api/users');
+        const res = await fetch(`/api/users?_=${Date.now()}`);
         usersCache = await res.json();
         populateAssignedSelect();
         renderCollaboratorsBar();
