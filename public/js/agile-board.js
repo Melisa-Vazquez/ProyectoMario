@@ -789,22 +789,30 @@ function renderComments(taskId) {
 function renderHistory(taskId, createdAt) {
     const container = document.getElementById('history-list');
     if (!container) return;
-    const history = JSON.parse(localStorage.getItem(`history_${taskId}`)) || [];
 
-    let html = `
-        <div class="flex items-center gap-2 text-xs text-slate-400 border-l-2 border-emerald-500 pl-3 py-1 bg-emerald-500/5 my-1 rounded-r">
-            <span>🟢 Tarea registrada en el sistema</span>
-            <span class="text-[10px] text-slate-600 ml-auto">${new Date(createdAt).toLocaleDateString()}</span>
-        </div>
-    `;
+    // Filtramos la creación duplicada e invertimos el orden para mostrar los más recientes primero
+    const history = (JSON.parse(localStorage.getItem(`history_${taskId}`)) || [])
+        .filter(h => h.log !== 'Tarea registrada inicialmente.')
+        .reverse();
 
+    let html = '';
+
+    // Agregamos primero los eventos del historial local (los más nuevos)
     html += history.map(h => `
         <div class="flex items-start gap-2 text-xs text-slate-300 border-l-2 border-indigo-500 pl-3 py-1 bg-indigo-500/5 my-1 rounded-r">
             <span class="mt-0.5">🔄</span>
             <p class="flex-1">${h.log}</p>
-            <span class="text-[9px] text-slate-500 shrink-0 mt-0.5">${h.date.split(',')[1] || h.date}</span>
+            <span class="text-[9px] text-slate-500 shrink-0 mt-0.5">${h.date}</span>
         </div>
     `).join('');
+
+    // Agregamos el registro inicial (el evento más antiguo) al final
+    html += `
+        <div class="flex items-center gap-2 text-xs text-slate-400 border-l-2 border-emerald-500 pl-3 py-1 bg-emerald-500/5 my-1 rounded-r">
+            <span>🟢 Tarea registrada en el sistema</span>
+            <span class="text-[10px] text-slate-600 ml-auto">${new Date(createdAt).toLocaleString('es-MX')}</span>
+        </div>
+    `;
 
     container.innerHTML = html;
 }
@@ -825,14 +833,43 @@ function logHistoryEvent(taskId, message) {
 }
 
 function parseHistoryDate(entry) {
-    // Formato nuevo: campo iso
+    if (!entry) return new Date(0);
     if (entry.iso) return new Date(entry.iso);
+    
+    const dateStr = entry.date || '';
+    try {
+        const parts = dateStr.split(',');
+        if (parts.length >= 1) {
+            const dateParts = parts[0].trim().split('/');
+            if (dateParts.length === 3) {
+                const day = parseInt(dateParts[0], 10);
+                const month = parseInt(dateParts[1], 10) - 1;
+                const year = parseInt(dateParts[2], 10);
+                
+                let hours = 0, minutes = 0, seconds = 0;
+                if (parts.length >= 2) {
+                    const timeStr = parts[1].trim().toLowerCase();
+                    const timeMatch = timeStr.match(/(\d+):(\d+):?(\d+)?/);
+                    if (timeMatch) {
+                        hours = parseInt(timeMatch[1], 10);
+                        minutes = parseInt(timeMatch[2], 10);
+                        seconds = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+                        
+                        if (timeStr.includes('p') && hours < 12) hours += 12;
+                        else if (timeStr.includes('a') && hours === 12) hours = 0;
+                    }
+                }
+                return new Date(year, month, day, hours, minutes, seconds);
+            }
+        }
+    } catch (e) {
+        console.error("Error parsing history date:", e);
+    }
 
-    // Formato antiguo: "DD/MM/YYYY, ..." — extraer con regex
-    const m = (entry.date || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (m) return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+    const parsed = Date.parse(dateStr);
+    if (!isNaN(parsed)) return new Date(parsed);
 
-    return null;
+    return new Date(0);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1082,7 +1119,11 @@ function renderGlobalHistory() {
         if (key && key.startsWith('history_')) {
             const id   = key.replace('history_', '');
             const logs = JSON.parse(localStorage.getItem(key)) || [];
-            logs.forEach(lg => globalLogs.push({ text: `Tarea ID #${id}: ${lg.log}`, date: lg.date }));
+            logs.forEach(lg => globalLogs.push({
+                text: `Tarea ID #${id}: ${lg.log}`,
+                date: lg.date,
+                parsedDate: parseHistoryDate(lg)
+            }));
         }
     }
 
@@ -1091,7 +1132,7 @@ function renderGlobalHistory() {
         return;
     }
 
-    globalLogs.sort((a, b) => new Date(b.date) - new Date(a.date));
+    globalLogs.sort((a, b) => b.parsedDate - a.parsedDate);
     container.innerHTML = globalLogs.map(g => `
         <div class="bg-slate-900 p-2 rounded text-xs flex justify-between gap-4">
             <span>🔄 ${g.text}</span>
@@ -1102,10 +1143,19 @@ function renderGlobalHistory() {
 
 function clearGlobalHistory() {
     if (!confirm("¿Limpiar todo el historial global?")) return;
-    for (let i = localStorage.length - 1; i >= 0; i--) {
+    
+    // Recolectamos primero todas las claves para borrar de forma segura
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('history_')) localStorage.removeItem(key);
+        if (key && key.startsWith('history_')) {
+            keysToRemove.push(key);
+        }
     }
+    
+    // Eliminamos las claves del localStorage
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
     renderGlobalHistory();
 }
 
