@@ -441,7 +441,18 @@ function openDetailsModal(taskId) {
         : '—';
 
     // Título e ID
-    document.getElementById('detail-title').innerText  = foundTask.title;
+    const titleEl = document.getElementById('detail-title');
+    titleEl.innerText = foundTask.title;
+
+    const isDone = originalBoardData.columns.find(c => c.id === foundTask.column_id)?.name.toLowerCase() === 'terminado';
+    if (isDone) {
+        titleEl.classList.add('line-through', 'text-slate-400');
+        titleEl.classList.remove('text-white');
+    } else {
+        titleEl.classList.remove('line-through', 'text-slate-400');
+        titleEl.classList.add('text-white');
+    }
+
     document.getElementById('detail-task-id').innerText = `#${foundTask.id}`;
     document.getElementById('detail-desc').innerText    = foundTask.description || 'Sin descripción añadida.';
 
@@ -628,6 +639,17 @@ async function moveTaskToColumn(newColumnId) {
             const btnComplete = document.getElementById('btn-complete-task');
             if (btnComplete) {
                 btnComplete.classList.toggle('hidden', terminadoCol && newColumnId === terminadoCol.id);
+            }
+
+            // Actualizar título (tachado o no)
+            const isDoneNow = terminadoCol && newColumnId === terminadoCol.id;
+            const titleEl = document.getElementById('detail-title');
+            if (isDoneNow) {
+                titleEl.classList.add('line-through', 'text-slate-400');
+                titleEl.classList.remove('text-white');
+            } else {
+                titleEl.classList.remove('line-through', 'text-slate-400');
+                titleEl.classList.add('text-white');
             }
 
             await loadBoard();
