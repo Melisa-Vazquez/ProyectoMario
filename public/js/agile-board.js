@@ -672,7 +672,7 @@ async function completeTask() {
     );
 
     if (!terminadoCol) {
-        alert('No existe una columna "Terminado". Créala primero desde el tablero.');
+        alert("No existe una columna 'Terminado'. Créala primero.");
         return;
     }
 
@@ -1057,10 +1057,19 @@ async function buildVelocityChart(period) {
             d.setDate(d.getDate() - i);
             d.setHours(0, 0, 0, 0);
             const next = new Date(d.getTime() + 86400000);
-            labels.push(d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' }));
+            
+            let dayName = d.toLocaleDateString('es-MX', { weekday: 'short' }).replace('.', '');
+            dayName = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+            labels.push(`${dayName} ${d.getDate()}`);
+            
             data.push(completions.filter(c => c >= d && c < next).length);
         }
     } else {
+        const formatLabel = (date) => {
+            let s = date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '');
+            return s.split(' ').map(w => w === 'de' ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        };
+
         for (let w = 3; w >= 0; w--) {
             const wEnd = new Date();
             wEnd.setDate(wEnd.getDate() - w * 7);
@@ -1069,9 +1078,7 @@ async function buildVelocityChart(period) {
             wStart.setDate(wStart.getDate() - 6);
             wStart.setHours(0, 0, 0, 0);
 
-            const labelStart = wStart.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
-            const labelEnd   = new Date(wEnd).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
-            labels.push(`${labelStart} – ${labelEnd}`);
+            labels.push(`${formatLabel(wStart)} – ${formatLabel(wEnd)}`);
             data.push(completions.filter(c => c >= wStart && c <= wEnd).length);
         }
     }
