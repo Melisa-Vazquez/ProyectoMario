@@ -32,14 +32,10 @@ class RegisterController extends Controller
             'password.confirmed'    => 'Las contraseñas no coinciden.',
         ]);
 
-        // El primer usuario registrado es admin, los demás son miembros
-        $role = User::count() === 0 ? 'admin' : 'member';
-
         $user = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
             'password' => Hash::make($request->password),
-            'role'     => $role,
         ]);
 
         Auth::login($user);
