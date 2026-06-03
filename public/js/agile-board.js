@@ -96,6 +96,9 @@ async function loadBoard() {
         `;
         container.appendChild(addColumnCard);
 
+        // Renderizar la barra del equipo
+        renderTeamBar();
+
     } catch (error) {
         console.error("Error al sincronizar datos:", error);
     }
@@ -1427,3 +1430,66 @@ window.onload = async function () {
 
     console.log("✅ KanbanFlow JS cargado correctamente.");
 };
+
+// ────────────────────────────────────────────────────────────
+// 10. Barra de Equipo
+// ────────────────────────────────────────────────────────────
+async function renderTeamBar() {
+    const container = document.getElementById('collaborators-bar');
+    if (!container || !originalBoardData) return;
+
+    try {
+        if (usersCache.length === 0) {
+            const res = await fetch('/api/users');
+            if (res.ok) usersCache = await res.json();
+        }
+
+        const colors = [
+            'bg-blue-600', 'bg-emerald-600', 'bg-violet-600', 'bg-rose-600', 
+            'bg-amber-600', 'bg-cyan-600', 'bg-fuchsia-600', 'bg-teal-600'
+        ];
+
+        let html = '<span class="text-[10px] font-bold text-slate-600 uppercase tracking-widest shrink-0">Equipo:</span>';
+
+        usersCache.forEach((user, index) => {
+            const initials = user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+            const colorClass = colors[index % colors.length];
+            const isMe = window.currentUser && window.currentUser.name === user.name;
+            const ringClass = isMe ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-800' : 'border border-slate-700/50';
+
+            // Calcular tareas del usuario
+            let totalTasks = 0;
+            let activeTasks = 0;
+
+            originalBoardData.columns.forEach(col => {
+                const isDone = col.name.toLowerCase() === 'terminado';
+                col.tasks.forEach(task => {
+                    if (task.assigned_to === user.name) {
+                        totalTasks++;
+                        if (!isDone) activeTasks++;
+                    }
+                });
+            });
+
+            const dotHtml = activeTasks > 0 
+                ? '<span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-800 rounded-full animate-pulse"></span>' 
+                : '';
+
+            const tooltipText = `${user.name}\nTotal: ${totalTasks} tareas asignadas\nEn progreso: ${activeTasks}`;
+
+            html += `
+                <div class="relative group cursor-pointer" title="${tooltipText}">
+                    <div class="w-8 h-8 rounded-full ${colorClass} ${ringClass} flex items-center justify-center text-xs font-black text-white shadow-md transition-transform hover:scale-110">
+                        ${initials}
+                    </div>
+                    ${dotHtml}
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+    } catch (e) {
+        console.error("Error al cargar el equipo:", e);
+    }
+}
