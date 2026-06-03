@@ -1339,18 +1339,18 @@ function renderCollaboratorsBar() {
 
     // Calcular tareas por usuario a partir del board
     const tasksByUser = {};
-    usersCache.forEach(u => { tasksByUser[u.name] = { total: 0, inProgress: [] }; });
+    usersCache.forEach(u => { tasksByUser[u.name] = { total: 0, inProgress: [], active: 0 }; });
 
     if (originalBoardData) {
-        const terminadoId = originalBoardData.columns.find(
-            c => c.name.toLowerCase() === 'terminado'
-        )?.id;
-
         originalBoardData.columns.forEach(col => {
+            const isTerminado = col.name.toLowerCase() === 'terminado';
             col.tasks.forEach(t => {
                 if (t.assigned_to && tasksByUser[t.assigned_to]) {
                     tasksByUser[t.assigned_to].total++;
-                    if (col.id !== terminadoId) {
+                    if (!isTerminado) {
+                        tasksByUser[t.assigned_to].active++;
+                    }
+                    if (col.name.toLowerCase() === 'en progreso') {
                         tasksByUser[t.assigned_to].inProgress.push(t.title);
                     }
                 }
@@ -1372,7 +1372,7 @@ function renderCollaboratorsBar() {
         const stats    = tasksByUser[u.name];
         const isCurrent = window.currentUser && u.name === window.currentUser.name;
         const inProg   = stats.inProgress.length;
-        const tooltip  = `${u.name} — ${inProg} tarea${inProg !== 1 ? 's' : ''} en progreso`;
+        const hasActive = stats.active > 0;
 
         return `
             <div class="relative group flex items-center gap-1.5 cursor-default">
@@ -1381,7 +1381,7 @@ function renderCollaboratorsBar() {
                     ${initials}
                 </div>
                 <span class="text-xs text-slate-400 font-medium">${u.name.split(' ')[0]}</span>
-                ${inProg > 0 ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>` : ''}
+                ${hasActive ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>` : ''}
 
                 <div class="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 pointer-events-none">
                     <div class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 whitespace-nowrap shadow-xl">

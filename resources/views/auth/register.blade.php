@@ -27,7 +27,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="/register">
+            <form method="POST" action="/register" novalidate>
                 @csrf
 
                 {{-- Nombre --}}
