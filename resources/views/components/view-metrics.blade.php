@@ -19,7 +19,7 @@
             <span class="text-xs text-slate-600 mt-1 block">en el tablero</span>
         </div>
 
-        <div class="bg-slate-800 border border-emerald-900/40 bg-emerald-950/10 p-5 rounded-2xl">
+        <div class="bg-emerald-950/20 border border-emerald-500/20 p-5 rounded-2xl">
             <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Completadas</span>
             <p id="m-done" class="text-4xl font-black text-emerald-400 mt-2 tabular-nums">0</p>
             <div class="w-full bg-slate-700 h-1 rounded-full mt-2 overflow-hidden">
@@ -34,7 +34,7 @@
             <span class="text-xs text-slate-600 mt-1 block">pendientes o en curso</span>
         </div>
 
-        <div class="bg-slate-800 border border-red-900/40 bg-red-950/10 p-5 rounded-2xl">
+        <div class="bg-red-950/20 border border-red-500/35 p-5 rounded-2xl">
             <span class="text-[11px] font-bold text-red-500/70 uppercase tracking-wider">Vencidas</span>
             <p id="m-overdue" class="text-4xl font-black text-red-400 mt-2 tabular-nums">0</p>
             <span class="text-xs text-slate-600 mt-1 block">fecha límite superada</span>

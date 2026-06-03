@@ -51,6 +51,14 @@ class TaskController extends Controller
 
         $task->update($validated);
 
+        // Si la tarea se movió a una columna distinta de "Terminado", eliminar su registro de completado
+        if (isset($validated['column_id'])) {
+            $terminadoCol = \App\Models\Column::whereRaw('LOWER(name) = ?', ['terminado'])->first();
+            if ($terminadoCol && $validated['column_id'] != $terminadoCol->id) {
+                \App\Models\TaskCompletion::where('task_id', $task->id)->delete();
+            }
+        }
+
         return response()->json($task);
     }
 
